@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -15,22 +20,27 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.cyan,
       ),
+      darkTheme: ThemeData.dark(),
+      themeMode: ThemeMode.dark,
       home: const MyHomePage(),
     );
   }
 }
 
-class MyHomePage extends StatelessWidget {
+final currentDate = Provider<DateTime>((ref) => DateTime.now());
+
+class MyHomePage extends ConsumerWidget {
   const MyHomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final date = ref.watch(currentDate);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Riverpod'),
       ),
-      body: const Center(
-        child: Text('Body'),
+      body: Center(
+        child: Text(date.toIso8601String()),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {},
