@@ -38,39 +38,75 @@ extension OptionalInfixAddition<T extends num> on T? {
   }
 }
 
-class CounterNotifier extends StateNotifier<int> {
-  CounterNotifier() : super(0);
-  void increment() {
-    state = state + 1;
-  }
+enum City {
+  stockholm,
+  paris,
+  tokyo,
 }
 
-final counterProvider =
-    StateNotifierProvider<CounterNotifier, int?>((ref) => CounterNotifier());
+typedef WeatherEimoji = String;
+Future<WeatherEimoji> getWeather(City city) async {
+  return Future.delayed(
+    const Duration(seconds: 1),
+    () => {
+      City.stockholm: "❄️",
+      City.paris: "☔️",
+      City.tokyo: "⛅️",
+    }[city]!,
+  );
+}
+
+final weatherProvider = StateProvider<City?>((ref) => null);
+final currentWeatherProvider = FutureProvider<String>((ref) async {
+  final currentWeather = ref.watch(weatherProvider);
+  if (currentWeather != null) {
+    return getWeather(currentWeather);
+  } else {
+    return "🤷🏻‍♂️";
+  }
+});
 
 class MyHomePage extends ConsumerWidget {
   const MyHomePage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currentWeather = ref.watch(currentWeatherProvider);
     return Scaffold(
       appBar: AppBar(
-        title: Consumer(
-          builder: (context, ref, child) {
-            final counter = ref.watch(counterProvider);
-            final consumeCount =
-                counter == 0 ? "Press the button" : counter.toString();
-            return Text(consumeCount);
-          },
-        ),
+        title: const Text("Future Builder (Weater)"),
       ),
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextButton(
-            onPressed: ref.read(counterProvider.notifier).increment,
-            child: const Text("Press the button"),
+          currentWeather.when(
+            data: (data) => Text(
+              data,
+              style: const TextStyle(fontSize: 40),
+            ),
+            error: (error, stackTrace) => const Text(
+              "😢",
+              style: TextStyle(fontSize: 40),
+            ),
+            loading: () => const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: CircularProgressIndicator(),
+            ),
           ),
+          Expanded(
+              child: ListView.builder(
+            itemCount: City.values.length,
+            itemBuilder: (context, index) {
+              final cityTitle = City.values[index];
+              final isSelected = cityTitle == ref.watch(weatherProvider);
+              return ListTile(
+                title: Text(cityTitle.name),
+                trailing: !isSelected ? null : const Icon(Icons.check),
+                onTap: () {
+                  ref.read(weatherProvider.notifier).state = cityTitle;
+                },
+              );
+            },
+          ))
         ],
       ),
     );
