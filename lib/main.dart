@@ -10,7 +10,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -27,25 +27,51 @@ class MyApp extends StatelessWidget {
   }
 }
 
-final currentDate = Provider<DateTime>((ref) => DateTime.now());
+extension OptionalInfixAddition<T extends num> on T? {
+  T? operator +(T? other) {
+    final showdow = this;
+    if (showdow != null) {
+      return showdow + (other ?? 0) as T?;
+    } else {
+      return null;
+    }
+  }
+}
+
+class CounterNotifier extends StateNotifier<int> {
+  CounterNotifier() : super(0);
+  void increment() {
+    state = state + 1;
+  }
+}
+
+final counterProvider =
+    StateNotifierProvider<CounterNotifier, int?>((ref) => CounterNotifier());
 
 class MyHomePage extends ConsumerWidget {
-  const MyHomePage({super.key});
+  const MyHomePage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final date = ref.watch(currentDate);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Riverpod'),
+        title: Consumer(
+          builder: (context, ref, child) {
+            final counter = ref.watch(counterProvider);
+            final consumeCount =
+                counter == 0 ? "Press the button" : counter.toString();
+            return Text(consumeCount);
+          },
+        ),
       ),
-      body: Center(
-        child: Text(date.toIso8601String()),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextButton(
+            onPressed: ref.read(counterProvider.notifier).increment,
+            child: const Text("Press the button"),
+          ),
+        ],
       ),
     );
   }
