@@ -9,6 +9,32 @@ void main() {
   );
 }
 
+const List<String> names = [
+  'Alice',
+  'Bob',
+  'Charlie',
+  'David',
+  'Eve',
+  'Frank',
+  'Grace',
+  'Henry',
+  'Ivy',
+  'Jack'
+];
+
+final tickerProvider = StreamProvider<int>(
+  (ref) => Stream.periodic(
+    const Duration(seconds: 1),
+    (i) => i + 1,
+  ),
+);
+
+final namesProvider = StreamProvider((ref) {
+  return ref.watch(tickerProvider.future).asStream().map(
+        (event) => names.getRange(0, event),
+      );
+});
+
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
@@ -38,76 +64,29 @@ extension OptionalInfixAddition<T extends num> on T? {
   }
 }
 
-enum City {
-  stockholm,
-  paris,
-  tokyo,
-}
-
-typedef WeatherEimoji = String;
-Future<WeatherEimoji> getWeather(City city) async {
-  return Future.delayed(
-    const Duration(seconds: 1),
-    () => {
-      City.stockholm: "❄️",
-      City.paris: "☔️",
-      City.tokyo: "⛅️",
-    }[city]!,
-  );
-}
-
-final weatherProvider = StateProvider<City?>((ref) => null);
-final currentWeatherProvider = FutureProvider<String>((ref) async {
-  final currentWeather = ref.watch(weatherProvider);
-  if (currentWeather != null) {
-    return getWeather(currentWeather);
-  } else {
-    return "🤷🏻‍♂️";
-  }
-});
-
 class MyHomePage extends ConsumerWidget {
   const MyHomePage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentWeather = ref.watch(currentWeatherProvider);
+    final nameStream = ref.watch(namesProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Future Builder (Weater)"),
+        title: const Text("Stream Builder"),
       ),
-      body: Column(
-        children: [
-          currentWeather.when(
-            data: (data) => Text(
-              data,
-              style: const TextStyle(fontSize: 40),
+      body: nameStream.when(
+        data: (data) {
+          return ListView.builder(
+            itemCount: data.length,
+            itemBuilder: (context, index) => ListTile(
+              title: Text(data.elementAt(index)),
             ),
-            error: (error, stackTrace) => const Text(
-              "😢",
-              style: TextStyle(fontSize: 40),
-            ),
-            loading: () => const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: CircularProgressIndicator(),
-            ),
-          ),
-          Expanded(
-              child: ListView.builder(
-            itemCount: City.values.length,
-            itemBuilder: (context, index) {
-              final cityTitle = City.values[index];
-              final isSelected = cityTitle == ref.watch(weatherProvider);
-              return ListTile(
-                title: Text(cityTitle.name),
-                trailing: !isSelected ? null : const Icon(Icons.check),
-                onTap: () {
-                  ref.read(weatherProvider.notifier).state = cityTitle;
-                },
-              );
-            },
-          ))
-        ],
+          );
+        },
+        error: (error, stackTrace) => const Text("Done"),
+        loading: () => const Center(
+          child: CircularProgressIndicator(),
+        ),
       ),
     );
   }
