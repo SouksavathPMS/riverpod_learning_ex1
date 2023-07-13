@@ -1,8 +1,6 @@
-import 'dart:collection';
-
+// ignore_for_file: public_member_api_docs, sort_constructors_first
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 void main() {
   runApp(
@@ -13,67 +11,108 @@ void main() {
 }
 
 @immutable
-class Person {
-  final String name;
-  final int age;
-  final String uuid;
+class Film {
+  final String id;
+  final String title;
+  final String description;
+  final bool isFavorite;
+  const Film({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.isFavorite,
+  });
 
-  Person({
-    required this.name,
-    required this.age,
-    String? uuid,
-  }) : uuid = uuid ?? const Uuid().v4();
-
-  @override
-  String toString() => "Person(uuid: $uuid, name:$name, age:$age)";
-
-  @override
-  operator ==(covariant Person other) => uuid == other.uuid;
-
-  @override
-  int get hashCode => uuid.hashCode;
-
-  Person updated([String? name, int? age]) {
-    return Person(
-      name: name ?? this.name,
-      age: age ?? this.age,
-      uuid: uuid,
-    );
-  }
-
-  String get showName => "$name ($age years old)";
-}
-
-class DataModel extends ChangeNotifier {
-  final List<Person> _people = [];
-  int get count => _people.length;
-  UnmodifiableListView<Person> get people => UnmodifiableListView(_people);
-
-  void add(Person addPerson) {
-    _people.add(addPerson);
-    notifyListeners();
-  }
-
-  void remove(Person removePerson) {
-    _people.remove(removePerson);
-    notifyListeners();
-  }
-
-  void update(Person updatePerson) {
-    final index = _people.indexOf(updatePerson);
-    final oldPerson = _people[index];
-    if (oldPerson.name != updatePerson.name ||
-        oldPerson.age != updatePerson.age) {
-      _people[index] = oldPerson.updated(
-        updatePerson.name,
-        updatePerson.age,
+  Film copy(bool favorite) => Film(
+        id: id,
+        title: title,
+        description: description,
+        isFavorite: favorite,
       );
-      notifyListeners();
-    }
+
+  @override
+  String toString() {
+    return 'Film(id: $id,'
+        'title: $title,'
+        'description: $description,'
+        'isFavorite: $isFavorite)';
+  }
+
+  @override
+  operator ==(covariant Film other) =>
+      id == other.id && isFavorite == other.isFavorite;
+
+  @override
+  int get hashCode => Object.hashAll([id, isFavorite]);
+}
+
+List<Film> allFilms = [
+  const Film(
+    id: "1",
+    title: "Oppenheiber",
+    description: "The newest movie",
+    isFavorite: false,
+  ),
+  const Film(
+    id: "2",
+    title: "Inception",
+    description: "The great movie",
+    isFavorite: false,
+  ),
+  const Film(
+    id: "3",
+    title: "Interstella",
+    description: "The best space movie",
+    isFavorite: false,
+  ),
+  const Film(
+    id: "4",
+    title: "Dunkirk",
+    description: "The best soilder movie",
+    isFavorite: false,
+  ),
+];
+
+class FilmNotifier extends StateNotifier<List<Film>> {
+  FilmNotifier() : super(allFilms);
+
+  void update(Film newFilm, bool isFavorite) {
+    state = state
+        .map(
+          (anyFilm) =>
+              anyFilm.id == newFilm.id ? anyFilm.copy(isFavorite) : anyFilm,
+        )
+        .toList();
   }
 }
 
-final peopleProvider = ChangeNotifierProvider<DataModel>((ref) => DataModel());
+enum FavoriteStatus {
+  all,
+  favorite,
+  norFavorite,
+}
+
+final favoriteStatusProvider = StateProvider<FavoriteStatus>((ref) {
+  return FavoriteStatus.all;
+});
+
+final allFilmProvider = StateNotifierProvider<FilmNotifier, List<Film>>(
+  (ref) => FilmNotifier(),
+);
+
+final favoriteFilmsProvider = Provider<List<Film>>((ref) {
+  return ref
+      .watch(allFilmProvider)
+      .where((element) => element.isFavorite)
+      .toList();
+});
+
+final notFavoriteFilmsProvider = Provider<List<Film>>((ref) {
+  return ref
+      .watch(allFilmProvider)
+      .where((element) => !element.isFavorite)
+      .toList();
+});
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -102,106 +141,88 @@ class MyHomePage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text("Add a person"),
       ),
-      body: Consumer(
-        builder: (context, ref, child) {
-          final dataModel = ref.watch(peopleProvider);
-          return ListView.builder(
-            itemCount: dataModel.count,
-            itemBuilder: (context, index) {
-              final people = dataModel.people[index];
-              return ListTile(
-                title: Text(people.showName),
-                onTap: () async {
-                  final updatedPerson =
-                      await showCreateOrUpdateDialog(context, people);
-                  if (updatedPerson != null) {
-                    dataModel.update(updatedPerson);
-                  }
-                },
-              );
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const FilteredWidget(),
+          Consumer(
+            builder: (context, ref, child) {
+              final filter = ref.watch(favoriteStatusProvider);
+              switch (filter) {
+                case FavoriteStatus.all:
+                  return FilmsWidget(providerBase: allFilmProvider);
+                case FavoriteStatus.favorite:
+                  return FilmsWidget(providerBase: favoriteFilmsProvider);
+                case FavoriteStatus.norFavorite:
+                  return FilmsWidget(providerBase: notFavoriteFilmsProvider);
+              }
             },
-          );
-        },
+          )
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
-        onPressed: () async {
-          final person = await showCreateOrUpdateDialog(context);
-          if (person != null) {
-            final dataModel = ref.read(peopleProvider);
-            dataModel.add(person);
-          }
+    );
+  }
+}
+
+class FilmsWidget extends ConsumerWidget {
+  final AlwaysAliveProviderBase<Iterable<Film>> providerBase;
+  const FilmsWidget({
+    Key? key,
+    required this.providerBase,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final films = ref.watch(providerBase);
+    return Expanded(
+      child: ListView.builder(
+        itemCount: films.length,
+        itemBuilder: (context, index) {
+          final film = films.elementAt(index);
+          final filmFavoriteIcon = film.isFavorite
+              ? const Icon(Icons.favorite)
+              : const Icon(Icons.favorite_border);
+          return ListTile(
+            title: Text(film.title),
+            subtitle: Text(film.description),
+            trailing: IconButton(
+              onPressed: () {
+                final isFavorite = !film.isFavorite;
+                ref.read(allFilmProvider.notifier).update(film, isFavorite);
+              },
+              icon: filmFavoriteIcon,
+            ),
+          );
         },
       ),
     );
   }
 }
 
-final nameController = TextEditingController();
-final ageController = TextEditingController();
+class FilteredWidget extends StatelessWidget {
+  const FilteredWidget({super.key});
 
-Future<Person?> showCreateOrUpdateDialog(
-  BuildContext context, [
-  Person? updatePerson,
-]) {
-  String? name = updatePerson?.name;
-  int? age = updatePerson?.age;
-
-  nameController.text = name ?? '';
-  ageController.text = age?.toString() ?? '';
-
-  return showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Create or update Person"),
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                hintText: "Enter the name here...",
-              ),
-            ),
-            TextField(
-              controller: ageController,
-              decoration: const InputDecoration(
-                hintText: "Enter the age here...",
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            child: const Text("Cancel"),
-            onPressed: () => Navigator.of(context).pop(null),
-          ),
-          TextButton(
-            child: const Text("Save"),
-            onPressed: () {
-              if (name != null && age != null) {
-                final newName = nameController.text;
-                final newAge = int.tryParse(ageController.text)!;
-                if (updatePerson != null) {
-                  final newPerson = updatePerson.updated(newName, newAge);
-                  Navigator.of(context).pop(
-                    newPerson,
-                  );
-                }
-              } else {
-                Navigator.of(context).pop(
-                  Person(
-                    name: nameController.text,
-                    age: int.tryParse(ageController.text)!,
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, child) {
+        return DropdownButton(
+          value: ref.watch(favoriteStatusProvider),
+          items: FavoriteStatus.values
+              .map(
+                (status) => DropdownMenuItem(
+                  value: status,
+                  child: Text(
+                    status.name.split(".").last,
                   ),
-                );
-              }
-            },
-          ),
-        ],
-      );
-    },
-  );
+                ),
+              )
+              .toList(),
+          onChanged: (FavoriteStatus? value) {
+            ref.read(favoriteStatusProvider.notifier).state = value!;
+          },
+        );
+      },
+    );
+  }
 }
